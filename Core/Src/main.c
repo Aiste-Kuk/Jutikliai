@@ -59,11 +59,13 @@ static void MX_I2C2_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 #define acc_gyr_address 0xD7
-uint8_t CTRL3_C[2] = {0x12, 0x04}; // register increment
-uint8_t acc_on[2] = {0x10, 0x50}; // acc mode + fs (+-2g)
-
-uint8_t CTRL6_C[2] = {0x15, 0x10}; // normal and low modes enabled for accelerometer
-uint8_t OUTX_L_XL[1] = {0x28}; // first register of acc reading
+#define CTRL3_C 0x12 // control register for incrementing
+#define acc_on_reg 0x10 // acc mode (turns on acc)
+#define CTRL6_C 0x15 // control register for modes
+#define OUTX_L_XL 0x28 // first register of acc reading
+uint8_t acc_on[1] = {0x50}; // fs (+-2g)
+uint8_t reg_increment[1] = {0x04}; // register increment
+uint8_t mode_acc[1] = {0x10}; // normal and low modes enabled for accelerometer
 uint8_t data_acc[6];
 int16_t acc_unpacked[3], acc_xx, acc_yy, acc_zz;
 
@@ -75,6 +77,7 @@ uint8_t data_gyr[6];
 int16_t gyr_unpacked[3], gyr_xx, gyr_yy, gyr_zz;
 
 //temperature and humidity variables
+/*
 #define temp_hum_address 0xBC
 #define writing_th 0xBE
 #define reading_th 0xBF
@@ -84,7 +87,7 @@ uint8_t data_temp_hum[4];
 uint8_t who_am_I_reg[1] = {0x0F};
 uint8_t whoami[1];
 int16_t unpacked_temp_hum[2], temp, hum;
-
+*/
 //accelerometer and magnetometer variables
 #define magn_address 0x33
 #define reading_magn 0x3D
@@ -148,15 +151,13 @@ int main(void)
 
       /* USER CODE BEGIN 3 */
 	  //________________ READING DATA FROM ACCELEROMETER
-	   	  HAL_I2C_Master_Transmit(&hi2c1, acc_gyr_address, acc_on, 2, 10); // turn on accelerometer
+	  	  HAL_I2C_Mem_Write(&hi2c1, acc_gyr_address, acc_on_reg, 1, acc_on, 1, 10);
 	   	  HAL_Delay(30);
-	   	  HAL_I2C_Master_Transmit(&hi2c1, acc_gyr_address, CTRL3_C, 2, 10); // auto-increment registers
+	   	  HAL_I2C_Mem_Write(&hi2c1, acc_gyr_address, CTRL3_C, 1, reg_increment, 1, 10);
 	   	  HAL_Delay(30);
-	   	  HAL_I2C_Master_Transmit(&hi2c1, acc_gyr_address, CTRL6_C, 2, 10); // normal/low mode for accelerometer
+	   	  HAL_I2C_Mem_Write(&hi2c1, acc_gyr_address, CTRL6_C, 1, mode_acc, 1, 10);
 	   	  HAL_Delay(30);
-	   	  HAL_I2C_Master_Transmit(&hi2c1, acc_gyr_address, OUTX_L_XL, 1, 10); // send register - X axis first
-	   	  HAL_Delay(30);
-	   	  HAL_I2C_Master_Receive(&hi2c1, acc_gyr_address, data_acc, 6, 10); // receive data ffrom 6 registers XX YY ZZ
+	   	  HAL_I2C_Mem_Read(&hi2c1, acc_gyr_address, OUTX_L_XL, 1, data_acc, 6, 10);
 	   	  HAL_Delay(30);
 	   	  //_________________UNPACKING DATA FROM ACCELEROMETER
 	   	  int k = 0;
@@ -181,6 +182,7 @@ int main(void)
 	   	  gyr_yy=gyr_unpacked[1]*8.75/1000;
 	   	  gyr_zz=gyr_unpacked[2]*8.75/1000;
 	   	  //____________________READING DATA FROM TEMPERATURE AND HUMIDITY SENSOR
+	   	  /*
 	   	  HAL_I2C_Master_Transmit(&hi2c1, writing_th, who_am_I_reg, 1, 10);
 	   	  HAL_Delay(30);
 	   	  HAL_I2C_Master_Receive(&hi2c1, reading_th, whoami, 1, 10);
@@ -196,6 +198,7 @@ int main(void)
 	   	  for (int i = 0; i < 2; i++) { unpacked_temp_hum[i] = (data_temp_hum[k+1] << 8) | data_temp_hum[k]; k=k+2; }
 	   	  hum=unpacked_temp_hum[0];
 	   	  temp=unpacked_temp_hum[1];
+	   	  */
 	   	  //___________________CONVERTING DATA (linear interpolation????)
 
 	   	  //___________________READING DATA FROM AKSELEROMETER AND MANGETOMETER
