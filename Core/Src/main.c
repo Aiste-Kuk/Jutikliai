@@ -69,8 +69,6 @@ uint8_t acc_gyr_modes[2] = {0x10,0x80}; // low/normal modes for acc and gyr
 uint8_t data_acc_gyr[12]; // data received from acc and gyr sensors
 int16_t unpacked[6], acc_xx, acc_yy, acc_zz, gyr_xx, gyr_yy, gyr_zz;
 
-
-
 //temperature and humidity variables
 /*
 #define temp_hum_address 0xBC
@@ -83,27 +81,26 @@ uint8_t who_am_I_reg[1] = {0x0F};
 uint8_t whoami[1];
 int16_t unpacked_temp_hum[2], temp, hum;
 */
-//accelerometer and magnetometer variables
-#define magn_address 0x33
-#define reading_magn 0x3D
-#define writing_magn 0x3C
-uint8_t magn_on[2] = {0x60, 0x1C}; // continuous/single measurement mode
-uint8_t OUTX_L_REG_M[1] = {0x68|0x80}; // magnetometer XX YY ZZ
+//magnetometer variables
+#define magn_address 0x33 // magnetometer sensor adress
+#define reading_magn 0x3D // adress to read from magn sensor registers
+#define writing_magn 0x3C // address to write to magn sensor registers
+#define magn_on_mode 0x60 // control register to turn on magnetometer
+#define OUTX_L_REG_M 0x68|0x80 // magnetometer XX YY ZZ
+uint8_t magn_on[1] = {0x1C}; // continuous/single measurement mode
 uint8_t data_magn[6];
 int16_t unpacked_magn[3], magn_x, magn_y, magn_z;
-uint8_t who_am_I_magn[1] = {0x0F};
-uint8_t whoami_magn[1];
+
 //ACC
-#define writing_acc2 0x32
-#define reading_acc2 0x33
-uint8_t CTRL_REG1_A[2]={0x20, 0x57};
+#define writing_acc2 0x32 // address to write to acc registers
+#define reading_acc2 0x33 // address to read from acc registers
+#define CTRL_REG1_A 0x20 // modes register
+#define reg_out_acc2 0x28 // first register to output data
+uint8_t reg[1] = {0x57}; // normal mode on
 uint8_t data_acc2[12];
-uint8_t reg_out_acc2[1] = {0x28};
 int32_t unpacked_acc2[3];
 
-
-uint8_t data_reg[2];
-uint8_t adresas[1] = {0x16};
+uint16_t checkout;
 /* USER CODE END 0 */
 
 /**
@@ -187,18 +184,13 @@ int main(void)
 	   	  hum=unpacked_temp_hum[0];
 	   	  temp=unpacked_temp_hum[1];
 	   	  */
-	   	  //___________________CONVERTING DATA (linear interpolation????)
+	   	  //___________________CONVERTING DATA (linear interpolation)
 
 	   	  //___________________READING DATA FROM AKSELEROMETER AND MANGETOMETER
-	   	  HAL_I2C_Master_Transmit(&hi2c1, magn_address, who_am_I_magn, 1, 10);
+
+	   	  HAL_I2C_Mem_Write(&hi2c1, writing_magn, magn_on_mode, 1, magn_on, 1, 10);
 	   	  HAL_Delay(30);
-	   	  HAL_I2C_Master_Receive(&hi2c1, magn_address, whoami_magn, 1, 10);
-	   	  HAL_Delay(30);
-	   	  HAL_I2C_Master_Transmit(&hi2c1, writing_magn, magn_on, 2, 10);
-	   	  HAL_Delay(30);
-	   	  HAL_I2C_Master_Transmit(&hi2c1, writing_magn, OUTX_L_REG_M, 1, 10);
-	   	  HAL_Delay(30);
-	   	  HAL_I2C_Master_Receive(&hi2c1, reading_magn, data_magn, 6, 10);
+	   	  HAL_I2C_Mem_Read(&hi2c1, reading_magn, OUTX_L_REG_M, 1, data_magn, 6, 10);
 	      HAL_Delay(03);
 	      //___________________UNPACKING DATA, MAGNETOMETER
 	      k=0;
@@ -207,15 +199,14 @@ int main(void)
 	      magn_y=unpacked_magn[1];
 	      magn_z=unpacked_magn[2];
 	      //___________________READING DATA FROM ACCELEROMETER
-	      HAL_I2C_Master_Transmit(&hi2c1, writing_acc2, CTRL_REG1_A, 2, 10);
+	      HAL_I2C_Mem_Write(&hi2c1, writing_acc2, CTRL_REG1_A, 1, reg, 1, 10);
 	      HAL_Delay(10);
-	      HAL_I2C_Master_Transmit(&hi2c1, writing_acc2, reg_out_acc2, 1, 10);
+	      HAL_I2C_Mem_Read(&hi2c1, reading_acc2, reg_out_acc2, 1, data_acc2, 12, 10);
 	      HAL_Delay(10);
-	      HAL_I2C_Master_Receive(&hi2c1, reading_acc2, data_acc2, 12, 10);
-	      HAL_Delay(10);
-	      unpacked_acc2[0] = ((data_acc2[3] & 0x03) << 18) | (data_acc2[2] << 10 ) | ((data_acc2[1] & 0x03) << 8) | data_acc2[0];
-	      unpacked_acc2[1] = ((data_acc2[7] & 0x03) << 18) | (data_acc2[6] << 10 ) | ((data_acc2[5] & 0x03) << 8) | data_acc2[4];
-	      unpacked_acc2[2] = ((data_acc2[11] & 0x03) << 18) | (data_acc2[10] << 10 ) | ((data_acc2[9] & 0x03) << 8) | data_acc2[8];
+	      // twos complement left-justified xxxx xxxx xx00 0000
+	      unpacked_acc2[0] = ((data_acc2[3] & 0xC0) << 18) | (data_acc2[2] << 10 ) | ((data_acc2[1] & 0xC0) << 8) | data_acc2[0];
+	      unpacked_acc2[1] = ((data_acc2[7] & 0xC0) << 18) | (data_acc2[6] << 10 ) | ((data_acc2[5] & 0xC0) << 8) | data_acc2[4];
+	      unpacked_acc2[2] = ((data_acc2[11] & 0xC0) << 18) | (data_acc2[10] << 10 ) | ((data_acc2[9] & 0xC0) << 8) | data_acc2[8];
     }
   /* USER CODE END 3 */
 }
