@@ -62,25 +62,14 @@ static void MX_I2C2_Init(void);
 #define CTRL3_C 0x12 // control register for incrementing
 #define acc_on_reg 0x10 // acc mode (turns on acc)
 #define CTRL6_C 0x15 // control register for acc modes
-#define OUTX_L_XL 0x28 // first register of acc reading
-uint8_t acc_on[1] = {0x50}; // fs (+-2g)
+#define OUTX_L_G 0x22 // first register of gyr reading
 uint8_t reg_increment[1] = {0x04}; // register increment
-uint8_t mode_acc[1] = {0x10}; // normal and low modes enabled for accelerometer
-uint8_t data_acc[6]; // data received from acc sensor
-int16_t acc_unpacked[3], acc_xx, acc_yy, acc_zz;
+uint8_t acc_gyr_on_values[2] = {0x50, 0x50}; // turn on acc and gyr
+uint8_t acc_gyr_modes[2] = {0x10,0x80}; // low/normal modes for acc and gyr
+uint8_t data_acc_gyr[12]; // data received from acc and gyr sensors
+int16_t unpacked[6], acc_xx, acc_yy, acc_zz, gyr_xx, gyr_yy, gyr_zz;
 
-uint16_t acc_gyr_on_reg[2] = {0x10, 0x11};
-uint8_t acc_gyr_on_values[2] = {0x50, 0x50};
-uint16_t acc_gyr_modes_reg[2] = {0x15,0x16};
-uint8_t acc_gyr_modes[2] = {0x10,0x80};
-//gyroscope variables
-#define gyr_on_reg 0x11 // control register to turn on gyr
-#define CTRL7_G 0x16 // mode control register for gyr
-uint8_t gyr_on[1] = {0x50}; // fs(250 mdps/LSB)
-uint8_t gyr_mode[1] = {0x80}; // normal and low modes enabled for gyroscope
-uint8_t OUTX_L_G[1] = {0x22}; // first register of gyr reading
-uint8_t data_gyr[6];
-int16_t gyr_unpacked[3], gyr_xx, gyr_yy, gyr_zz;
+
 
 //temperature and humidity variables
 /*
@@ -160,36 +149,26 @@ int main(void)
   	  /* USERC CODE BEGIN 3 */
 
       /* USER CODE BEGIN 3 */
-	  //________________ READING DATA FROM ACCELEROMETER
-	  	  HAL_I2C_Mem_Write(&hi2c1, acc_gyr_address, acc_gyr_on_reg, 2, acc_gyr_on_values, 2, 10);
+	  //________________ READING DATA FROM ACCELEROMETER AND GYROSCOPE
+	  // Turn on acc and reg, auto increment, set low/normal modes for acc and gyr, read data
+	  	  HAL_I2C_Mem_Write(&hi2c1, acc_gyr_address, acc_on_reg, 1, acc_gyr_on_values, 2, 10);
 	   	  HAL_Delay(30);
 	   	  HAL_I2C_Mem_Write(&hi2c1, acc_gyr_address, CTRL3_C, 1, reg_increment, 1, 10);
 	   	  HAL_Delay(30);
-	   	  HAL_I2C_Mem_Write(&hi2c1, acc_gyr_address, CTRL6_C, 1, mode_acc, 1, 10);
+	   	  HAL_I2C_Mem_Write(&hi2c1, acc_gyr_address, CTRL6_C, 1, acc_gyr_modes, 2, 10);
 	   	  HAL_Delay(30);
-	   	  HAL_I2C_Mem_Write(&hi2c1, acc_gyr_address, CTRL7_G, 1, gyr_mode, 1, 10); // normal/low mode for gyroscope
+	   	  HAL_I2C_Mem_Read(&hi2c1, acc_gyr_address, OUTX_L_G, 1, data_acc_gyr, 12, 10);
 	   	  HAL_Delay(30);
-
-	   	  HAL_I2C_Mem_Read(&hi2c1, acc_gyr_address, OUTX_L_XL, 1, data_acc, 6, 10);
-	   	  HAL_Delay(30);
-	   	  //_________________UNPACKING DATA FROM ACCELEROMETER
+	   	  //____________ UNPACKING DATA FROM ACCELEROMETER AND GYROSCOPE
 	   	  int k = 0;
-	   	  for (int i = 0; i < 3; i++) { acc_unpacked[i] = (data_acc[k+1] << 8) | data_acc[k]; k=k+2; }
-	   	  acc_xx=acc_unpacked[0]*0.061;
-	   	  acc_yy=acc_unpacked[1]*0.061;
-	   	  acc_zz=acc_unpacked[2]*0.061;
+	   	  for (int i = 0; i < 6; i++) { unpacked[i] = (data_acc_gyr[k+1] << 8) | data_acc_gyr[k]; k=k+2; }
+	   	  gyr_xx=unpacked[0]*8.75/1000;
+	   	  gyr_yy=unpacked[1]*8.75/1000;
+	   	  gyr_zz=unpacked[2]*8.75/1000;
+	   	  acc_xx=unpacked[3]*0.061;
+	   	  acc_yy=unpacked[4]*0.061;
+	   	  acc_zz=unpacked[5]*0.061;
 
-	   	  //____________________READING DATA FROM GYROSCOPE
-	   	  HAL_I2C_Master_Transmit(&hi2c1, acc_gyr_address, OUTX_L_G, 1, 10); // send register - X axis first
-	   	  HAL_Delay(30);
-	   	  HAL_I2C_Master_Receive(&hi2c1, acc_gyr_address, data_gyr, 6, 10); // receive data from 6 registers XX YY ZZ
-	   	  HAL_Delay(30);
-	   	  //____________________UNPACKING DATA FROM ACCELEROMETER
-	   	  k=0;
-	   	  for (int i = 0; i < 3; i++) { gyr_unpacked[i] = (data_gyr[k+1] << 8) | data_gyr[k]; k=k+2; }
-	   	  gyr_xx=gyr_unpacked[0]*8.75/1000;
-	   	  gyr_yy=gyr_unpacked[1]*8.75/1000;
-	   	  gyr_zz=gyr_unpacked[2]*8.75/1000;
 	   	  //____________________READING DATA FROM TEMPERATURE AND HUMIDITY SENSOR
 	   	  /*
 	   	  HAL_I2C_Master_Transmit(&hi2c1, writing_th, who_am_I_reg, 1, 10);
